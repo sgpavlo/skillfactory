@@ -1,12 +1,46 @@
-SELECT 
-        f.flight_id,
-        SUM(b.total_amount) AS revenue_sum
-FROM    dst_project.flights f
-        JOIN dst_project.boarding_passes bp ON f.flight_id = bp.flight_id
-        JOIN dst_project.tickets t ON bp.ticket_no = t.ticket_no
-        JOIN dst_project.bookings b ON t.book_ref = b.book_ref
+SELECT sq_1.model,
+       sq_1.aircraft_code,
+       sq_1.range,
+       sq_1.seat_count,
+       sq_2.occupancy_count,
+       sq_2.occupancy_count*1.0/sq_1.seat_count AS occupancy_rate,
+       sq_2.flight_id,
+       sq_2.revenue_sum,
+       sq_3.city,
+       sq_3.airport_name,
+       sq_3.longitude,
+       sq_3.latitude,
+       f.scheduled_departure,
+       f.scheduled_arrival,
+       f.arrival_airport,
+       f.actual_departure,
+       f.actual_arrival,
+       f.actual_arrival - f.actual_departure AS fly_time
+FROM
+  (SELECT ac.model,
+          ac.aircraft_code,
+          ac.range,
+          COUNT(DISTINCT s.seat_no) seat_count
+   FROM dst_project.aircrafts ac
+   JOIN dst_project.seats s ON ac.aircraft_code = s.aircraft_code
+   GROUP BY ac.model,
+            ac.aircraft_code) AS sq_1
+JOIN dst_project.flights f ON sq_1.aircraft_code = f.aircraft_code
+LEFT  JOIN
+  (SELECT COUNT(tf.ticket_no) AS occupancy_count,
+          tf.flight_id,
+          SUM(tf.amount) AS revenue_sum
+   FROM dst_project.ticket_flights tf
+   GROUP BY tf.flight_id) sq_2 ON f.flight_id = sq_2.flight_id
+JOIN
+  (SELECT a.city,
+          a.airport_name,
+          a.longitude,
+          a.latitude,
+          a.airport_code
+   FROM dst_project.airports a) sq_3 ON f.arrival_airport = sq_3.airport_code
 WHERE f.departure_airport = 'AAQ'
-  AND (date_trunc('month', f.scheduled_departure) in ('2017-01-01','2017-02-01', '2017-12-01'))
+  AND (date_trunc('month', f.scheduled_departure) in ('2017-01-01',
+                                                      '2017-02-01',
+                                                      '2017-12-01'))
   AND f.status not in ('Cancelled')
-GROUP BY f.flight_id
-ORDER BY 2
